@@ -300,6 +300,8 @@ Final_data$Trial = gsub("[T]", "", Final_data$Trial)
 # To get condition
 Final_data = Final_data %>% group_by(filename) %>% mutate(Condition = gsub('.{4}$', '', strsplit(filename, "_")[[1]][4]))
 
+Final_data=Final_data[c(".groups", "Study","Group","Trial", "Condition", "filename","time","HR1","HR2","Resp1","Resp2", "Dimension_Resp", "Radius_Resp", "Delay_Resp", "Dimension_HR", "Radius_HR", "Delay_HR")]
+
 ```
 # To get mean parameters for CRQA
 mean(Final_data$Dimension_Resp, na.rm = TRUE) # 3.12 = 3
