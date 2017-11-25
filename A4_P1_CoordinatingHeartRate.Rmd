@@ -1,0 +1,203 @@
+---
+title: "Assignment 4 - Coordinating Heart Rate"
+author: "Riccardo Fusaroli"
+date: "November 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+
+#library
+library(ggplot2);library(groupdata2);library(dplyr);library(crqa)
+
+#Setting setWD 
+setwd("~/OneDrive - Aarhus universitet/AU-Cognitive Science/3rd Semester/Experimental Methods 3/Exercise/Assignments/Assignment_3/TestData")
+
+
+```
+
+## Analysing Heart Rate and Respiration data
+
+The goal of this assignment is to first familiarize you with heart rate, and respiration data and their preprocessing. The second part explores how to analyze interpersonal coordination of these signals.
+
+These are the questions you need to be able to answer at the end of the assignment (aka that you need to submit as part of the portfolio)
+
+1) How do you preprocess heart rate and respiration data? Describe the process. If any data needs to be excluded, list the excluded data and motivate the exclusion.
+
+2) Do you observe interpersonal coordination in heart rate and respiration? Describe your control baseline, the method used to quantify coordination, and the statistical models used to infer whether coordination was higher than in the baseline. Report the results of the models.
+
+3) Do you observe differences in coordination between conditions? Report the models and results.
+
+4) Is respiration coordination a likely driver of heart rate coordination? Describe how you would test for it. Bonus points if you actually run the tests and report methods and results.
+
+N.B. to give you a bit more data I included data from last year (Study1) and from your class (Study2). Note that synchronouns and turn-taking are the same across both studies, but the third condition is different: last year it was self-paced joint reading; this year it was the tv-series conversation. So you might want to exclude the self-paced reading (but, up to you!)
+
+```{r setup, include=FALSE}
+setwd("~/OneDrive - Aarhus universitet/AU-Cognitive Science/3rd Semester/Experimental Methods 3/Exercise/Assignments/Assignment_3/TestData")
+
+#upload data and plotting it to look for files to eliminate
+#SYNC DATA
+G5_Sync=read.csv("Study2_G5_T1_Synchronous.csv")
+
+#  ggplot(G5_Sync,aes(x=time, y=Resp1))+geom_line(color="chartreuse4")+geom_line(aes(x=time, y=Resp2),color="yellow")
+
+#  ggplot(G5_Sync,aes(x=time, y=HR1),color="blue")+geom_line()+geom_line(aes(x=time, y=HR2),color="red")
+
+#TURN DATA
+G5_Turn=read.csv("Study2_G5_T2_TurnTaking.csv")
+#  ggplot(G5_Turn,aes(x=time, y=Resp1))+geom_line(color="chartreuse4")+geom_line(aes(x=time, y=Resp2), color="yellow")
+
+#  ggplot(G5_Turn,aes(x=time, y=HR1))+geom_line(color="blue")+geom_line(aes(x=time, y=HR2),color="red")
+
+#CONV DATA
+G5_Conv=read.csv("Study2_G5_T3_Conversation.csv")
+
+#  ggplot(G5_Conv,aes(x=time, y=Resp1))+geom_line(color="chartreuse4")+geom_line(aes(x=time, y=Resp2),color="yellow")
+
+#  ggplot(G5_Conv,aes(x=time, y=HR1))+geom_line(color="blue")+geom_line(aes(x=time, y=HR2),color="red")
+
+
+#starting downsampling (using Ludvigs function)
+G_Sync = G5_Sync %>%
+    group(n = 100, method = 'greedy') %>%
+    dplyr::summarise(
+       time = mean(time,na.rm=T),
+       HR1 = mean(HR1,na.rm=T),
+       HR2 = mean(HR2,na.rm=T),
+       Resp1 = mean(Resp1,na.rm=T),
+       Resp2 = mean(Resp2,na.rm=T))
+
+G5_Turn = G5_Turn %>%
+    group(n = 100, method = 'greedy') %>%
+    dplyr::summarise(
+       time = mean(time,na.rm=T),
+       HR1 = mean(HR1,na.rm=T),
+       HR2 = mean(HR2,na.rm=T),
+       Resp1 = mean(Resp1,na.rm=T),
+       Resp2 = mean(Resp2,na.rm=T))
+
+G5_Conv = G5_Conv %>%
+    group(n = 100, method = 'greedy') %>%
+    dplyr::summarise(
+       time = mean(time,na.rm=T),
+       HR1 = mean(HR1,na.rm=T),
+       HR2 = mean(HR2,na.rm=T),
+       Resp1 = mean(Resp1,na.rm=T),
+       Resp2 = mean(Resp2,na.rm=T))
+
+#Removing outliers from each dataset using function
+removeOuts <- function(ts,threshold){
+   ts[ts > (mean(ts,na.rm=T) +  (threshold*sd(ts,na.rm=T))) | 
+   ts < (mean(ts,na.rm=T) - (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)  
+   return(ts)} 
+
+threshold=1.5
+#Applying the function to all the datasets in order to remove outliers.
+#SYNC DATA
+G5_Sync$HR1=removeOuts(G5_Sync$HR1,threshold)
+G5_Sync$HR2=removeOuts(G5_Sync$HR2,threshold)
+G5_Sync$Resp1=removeOuts(G5_Sync$Resp1,threshold)
+G5_Sync$Resp2=removeOuts(G5_Sync$Resp2,threshold)
+
+#TURN DATA
+G5_Turn$HR1=removeOuts(G5_Turn$HR1,threshold)
+G5_Turn$HR2=removeOuts(G5_Turn$HR2,threshold)
+G5_Turn$Resp1=removeOuts(G5_Turn$Resp1,threshold)
+G5_Turn$Resp2=removeOuts(G5_Turn$Resp2,threshold)
+
+#CONV DATA
+G5_Conv$HR1=removeOuts(G5_Conv$HR1,threshold)
+G5_Conv$HR2=removeOuts(G5_Conv$HR2,threshold)
+G5_Conv$Resp1=removeOuts(G5_Conv$Resp1,threshold)
+G5_Conv$Resp2=removeOuts(G5_Conv$Resp2,threshold)
+
+#Scaling
+#Synchronisation data
+G5_Sync$Resp1S=scale(G5_Sync$Resp1) 
+G5_Sync$Resp2S=scale(G5_Sync$Resp2)  
+G5_Sync$HR1S=scale(G5_Sync$HR1)
+G5_Sync$HR2S=scale(G5_Sync$HR2)
+#Turntaking data
+G5_Turn$Resp1S=scale(G5_Turn$Resp1) 
+G5_Turn$Resp2S=scale(G5_Turn$Resp2)  
+G5_Turn$HR1S=scale(G5_Turn$HR1)
+G5_Turn$HR2S=scale(G5_Turn$HR2)
+#conversation data
+G5_Conv$Resp1S=scale(G5_Conv$Resp1) 
+G5_Conv$Resp2S=scale(G5_Conv$Resp2)  
+G5_Conv$HR1S=scale(G5_Conv$HR1)
+G5_Conv$HR2S=scale(G5_Conv$HR2)
+
+```
+
+```{r setup, include=FALSE}
+#Preparing for CRQA
+par = list(lgM =  50, steps = seq(1, 6, 1),  radiusspan = 100,  radiussample = 40, normalize = 0,  rescale = 0,  mindiagline = 2,  minvertline = 2,  tw = 0,  whiteline = FALSE,  recpt = FALSE,  fnnpercent = 10,  typeami = "mindip")
+
+#looping through files
+files=list(G5_Sync,G5_Turn,G5_Conv)
+DIM=NULL
+RAD=NULL
+DELAY=NULL
+
+for (file in files){
+  ans_HR = optimizeParam(file$Resp1S, file$Resp2S, par, min.rec = 3.5, max.rec = 4.5)
+  DIM[n]=ans_HR$emddim
+  RAD[n]=ans_HR$radius
+  DELAY[n]=ans_HR$delay
+  n=n+1
+}
+
+parameters=data.frame(DIM,RAD,DELAY)
+
+#finding the mean of parameters for resp
+mean(parameters_resp$DIM)
+mean(parameters_resp$RAD)
+mean(parameters_resp$DELAY)
+
+#CRQA for resp
+Results_Sync=crqa (G5_Sync$Resp1S, G5_Sync$Resp2S, delay=delay, embed=emddim, radius=radius,normalize=0,rescale=0,mindiagline = 2,minvertline = 2)
+
+RP=Results_Sync$RP
+RP = matrix(as.numeric(RP), nrow = ncol(RP)) 
+cols = c("white","blue4”)
+image(RP, xlab = "", ylab = "", col = cols)
+```
+
+## Step by step suggestions to solve the assignment
+
+### Exploring physiological signals
+
+- Choose one pair (one pair, three conditions)
+- Load the logs
+- Produce a plot of the participants' respiration signal and a different one of the participants' HR signal (for inspecting whether the data is usable)
+  N.B: remember the slides: artifacts, downsampling, scaling.
+  N.B. The gridExtra::grid.arrange() function allows you to display the plots side by side. E.g. grid.arrange(plot1, plot2, plot3, ncol=3)
+- Can you eye-ball which condition if any displays more physiological coordination?
+
+- Run crqa on heart rate and respiration data (find parameters, run crqa)
+- Does this tell you more than just eyeballing the plots?
+
+### Systematically pre-process the data
+- Loop through all the files (either with a loop or with a function), check which files should be excluded, if any, and save the pre-processed time-series. Tip: plot and visually inspect the data to figure out which should be excluded.
+- Run crqa on all the pre-processed time-series and save the output (don't forget to add columns with study, group, condition and trial). Tip: remember to first assess optimal parameters (dimensions, delay, radius) across all timeseries. Tip: it will often fail, just take whatever parameters you get, select optimal across timeseries parameters and run crqa on all timeseries with those. Tip: double check the rr. When I ran the loop, I got very low rr, so I adjusted the radius until the average of rr across all pairs was approx. 4%.
+
+### Creating controls: shuffled controls
+ - loop through all pairs and conditions
+ - shuffle the timeseries (take a timeseries and rearrange its values in a random order). Tip check the sample() function
+ - run crqa and save the output. NB. which delay, embed, radius parameters should you use?
+ - statistically compare the crqa indexes in real and shuffled pairs
+ 
+### TRICKY! Creating controls: surrogate pair controls
+ - Per each real pair, identify at least one surrogate pair (matching one of the participants, with somebody doing the same task, but in a different pair). Tip: Celine will share a commented script
+ - Run crqa on all the surrogate pairs and save the output. NB. which delay, embed, radius parameters should you use?
+ - Test whether crqa shows a difference between real and surrogate pairs
+
+### Testing effects of conditions
+ - make a (probably underpowered) mixed model testing effects of the different conditions on heart rate and respiration coordination
+ - N.B: would it make sense to include surrogate pairs? and if so how? what would that tell you?
+
+### Effects of respiration coordination on heart rate coordination
+ - describe how you would test those.
+ - Optional: run the models and report them
